@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Worklog Viewer</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 50px auto;
+      padding: 20px;
+    }
+    h1 {
+      color: #333;
+    }
+    form {
+      background: #f5f5f5;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+    label {
+      display: inline-block;
+      width: 60px;
+      margin-right: 10px;
+    }
+    input[type="date"] {
+      padding: 8px;
+      margin-right: 10px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    button {
+      padding: 10px 20px;
+      margin: 5px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    button[type="submit"] {
+      background: #0052cc;
+      color: white;
+    }
+    button[type="button"] {
+      background: #36b37e;
+      color: white;
+    }
+    button:hover {
+      opacity: 0.9;
+    }
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    #output {
+      background: #f9f9f9;
+      padding: 15px;
+      border-radius: 4px;
+      border: 1px solid #ddd;
+      max-height: 500px;
+      overflow-y: auto;
+    }
+    .status {
+      margin: 10px 0;
+      padding: 10px;
+      border-radius: 4px;
+    }
+    .success {
+      background: #e3fcef;
+      color: #006644;
+    }
+    .error {
+      background: #ffebe6;
+      color: #bf2600;
+    }
+    .info {
+      background: #deebff;
+      color: #0747a6;
+    }
+  </style>
+</head>
+<body>
+  <h1>Fetch Jira Worklogs</h1>
+  <form onsubmit="fetchWorklogs(event)">
+    <label>Start:</label>
+    <input type="date" id="start" required>
+    <label>End:</label>
+    <input type="date" id="end" required>
+    <br><br>
+    <button type="submit">View Worklogs</button>
+    <button type="button" onclick="downloadExcel()">Download Excel</button>
+  </form>
+  
+  <div id="status"></div>
+  <pre id="output"></pre>
+
+  <script>
+    // HARDCODED BACKEND URL - Replace with your actual Render URL
+    const API_URL = 'https://aehr-jira-timelog.onrender.com';
+
+    async function fetchWorklogs(event) {
+      event.preventDefault();
+      const start = document.getElementById("start").value;
+      const end = document.getElementById("end").value;
+      const statusDiv = document.getElementById("status");
+      const outputDiv = document.getElementById("output");
+      
+      statusDiv.innerHTML = '<div class="status info">Fetching worklogs...</div>';
+      outputDiv.textContent = '';
+      
+      try {
+        const response = await fetch(`${API_URL}/worklogs?start=${start}&end=${end}`);
+        const data = await response.json();
+        
+        if (response.ok) {
+          statusDiv.innerHTML = '<div class="status success">Worklogs fetched successfully!</div>';
+          outputDiv.textContent = JSON.stringify(data, null, 2);
+        } else {
+          statusDiv.innerHTML = `<div class="status error">Error: ${data.error || 'Unknown error'}</div>`;
+        }
+      } catch (error) {
+        statusDiv.innerHTML = `<div class="status error">Error: ${error.message}</div>`;
+      }
+    }
+
+    async function downloadExcel() {
+      const start = document.getElementById("start").value;
+      const end = document.getElementById("end").value;
+      const statusDiv = document.getElementById("status");
+      
+      if (!start || !end) {
+        statusDiv.innerHTML = '<div class="status error">Please select both start and end dates</div>';
+        return;
+      }
+      
+      statusDiv.innerHTML = '<div class="status info">Generating Excel file...</div>';
+      
+      try {
+        const response = await fetch(`${API_URL}/worklogs/excel?start=${start}&end=${end}`);
+        
+        if (response.ok) {
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `worklogs_${start}_to_${end}.xlsx`;
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(a);
+          statusDiv.innerHTML = '<div class="status success">Excel file downloaded successfully!</div>';
+        } else {
+          const data = await response.json();
+          statusDiv.innerHTML = `<div class="status error">Error: ${data.error || 'Unknown error'}</div>`;
+        }
+      } catch (error) {
+        statusDiv.innerHTML = `<div class="status error">Error: ${error.message}</div>`;
+      }
+    }
+  </script>
+</body>
+</html>
