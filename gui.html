@@ -95,6 +95,9 @@
   <pre id="output"></pre>
 
   <script>
+    // HARDCODED BACKEND URL - Replace with your actual Render URL
+    const API_URL = 'https://aehr-jira-timelog.onrender.com/';
+
     async function fetchWorklogs(event) {
       event.preventDefault();
       const start = document.getElementById("start").value;
@@ -106,7 +109,7 @@
       outputDiv.textContent = '';
       
       try {
-        const response = await fetch(`http://localhost:5000/worklogs?start=${start}&end=${end}`);
+        const response = await fetch(`${API_URL}/worklogs?start=${start}&end=${end}`);
         const data = await response.json();
         
         if (response.ok) {
@@ -133,7 +136,7 @@
       statusDiv.innerHTML = '<div class="status info">Generating Excel file...</div>';
       
       try {
-        const response = await fetch(`http://localhost:5000/worklogs/excel?start=${start}&end=${end}`);
+        const response = await fetch(`${API_URL}/worklogs/excel?start=${start}&end=${end}`);
         
         if (response.ok) {
           const blob = await response.blob();
