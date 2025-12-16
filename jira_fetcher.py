@@ -6,14 +6,15 @@ import time
 from datetime import datetime
 import pandas as pd
 import io
+import os
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for the frontend
 
-# Your credentials
-email = "avadiwala@aehr.com"
-api_token = "ATATT3xFfGF0lGP31QT0gXyDQ1KY7j50u7iq_2SjnzfYL1KCpOWnihVEInm6dsnmNh4Or4V3IItYKt9Il9RdEOU75X0Lr_H_6xp7gdNq9DHU1XHsbxpJtxuKuz_nMrCBzRdtoj58cTBgyTJnKYEtGSEJfmdwkYMMd85ma46GUAw6AJKu6zhiGNg=2F2D36B3"
-base_url = "https://aehr.atlassian.net"
+# Get credentials from environment variables
+email = os.environ.get("JIRA_EMAIL")
+api_token = os.environ.get("JIRA_API_TOKEN")
+base_url = os.environ.get("JIRA_BASE_URL", "https://aehr.atlassian.net")
 
 def validate_date(date_str):
     try:
@@ -21,6 +22,10 @@ def validate_date(date_str):
         return True
     except ValueError:
         return False
+
+@app.route("/", methods=["GET"])
+def home():
+    return jsonify({"status": "Jira Worklog API is running"})
 
 @app.route("/worklogs", methods=["GET"])
 def get_worklogs():
@@ -106,7 +111,6 @@ def get_worklogs():
 
         for log in worklogs:
             log_date = log["started"][:10]
-            # Fixed date comparison - use >= and <=
             if start_date <= log_date <= end_date:
                 author = log["author"]["displayName"]
                 hours = log.get("timeSpentSeconds", 0) / 3600
@@ -241,7 +245,6 @@ def get_worklogs_excel():
                 df_worklogs = pd.DataFrame(worklog_rows)
                 df_worklogs.to_excel(writer, sheet_name='Worklogs', index=False)
             else:
-                # Create empty sheet with headers
                 df_worklogs = pd.DataFrame(columns=["Date", "Author", "Hours", "Project", "Issue Key"])
                 df_worklogs.to_excel(writer, sheet_name='Worklogs', index=False)
             
@@ -280,6 +283,5 @@ def get_worklogs_excel():
         return jsonify({"error": f"Failed to create Excel file: {str(e)}"}), 500
 
 if __name__ == "__main__":
-    print("Starting Flask server on http://localhost:5000")
-    print("Make sure to open gui.html in your browser")
-    app.run(debug=True, port=5000)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
