@@ -1,162 +1,896 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Worklog Viewer</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      max-width: 800px;
-      margin: 50px auto;
-      padding: 20px;
-    }
-    h1 {
-      color: #333;
-    }
-    form {
-      background: #f5f5f5;
-      padding: 20px;
-      border-radius: 8px;
-      margin-bottom: 20px;
-    }
-    label {
-      display: inline-block;
-      width: 60px;
-      margin-right: 10px;
-    }
-    input[type="date"] {
-      padding: 8px;
-      margin-right: 10px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-    }
-    button {
-      padding: 10px 20px;
-      margin: 5px;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 14px;
-    }
-    button[type="submit"] {
-      background: #0052cc;
-      color: white;
-    }
-    button[type="button"] {
-      background: #36b37e;
-      color: white;
-    }
-    button:hover {
-      opacity: 0.9;
-    }
-    button:disabled {
-      background: #ccc;
-      cursor: not-allowed;
-    }
-    #output {
-      background: #f9f9f9;
-      padding: 15px;
-      border-radius: 4px;
-      border: 1px solid #ddd;
-      max-height: 500px;
-      overflow-y: auto;
-    }
-    .status {
-      margin: 10px 0;
-      padding: 10px;
-      border-radius: 4px;
-    }
-    .success {
-      background: #e3fcef;
-      color: #006644;
-    }
-    .error {
-      background: #ffebe6;
-      color: #bf2600;
-    }
-    .info {
-      background: #deebff;
-      color: #0747a6;
-    }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jira Worklog Timecard</title>
+<style>
+  :root {
+    --bg: #14181d;
+    --panel: #1c2128;
+    --panel-border: #2a313b;
+    --text: #e6e9ee;
+    --text-dim: #8b94a3;
+    --accent: #4f8cff;
+    --accent-dim: #2a4d8c;
+    --good: #3ddc97;
+    --warn: #f0a830;
+    --mono: "SF Mono", "JetBrains Mono", Consolas, monospace;
+    --sans: "Inter", "Segoe UI", system-ui, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  header {
+    padding: 28px 32px 20px;
+    border-bottom: 1px solid var(--panel-border);
+  }
+
+  header h1 {
+    margin: 0;
+    font-size: 1.4rem;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+  }
+
+  header p {
+    margin: 4px 0 0;
+    color: var(--text-dim);
+    font-size: 0.9rem;
+  }
+
+  .layout {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 24px;
+    padding: 24px 32px 48px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  @media (max-width: 880px) {
+    .layout { grid-template-columns: 1fr; }
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    padding: 20px;
+  }
+
+  .field {
+    margin-bottom: 16px;
+  }
+
+  .field:last-child { margin-bottom: 0; }
+
+  .field label {
+    display: block;
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-dim);
+    margin-bottom: 6px;
+  }
+
+  input[type="date"], input[type="number"], select {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--panel-border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 9px 10px;
+    font-size: 0.9rem;
+    font-family: var(--sans);
+  }
+
+  input[type="date"]:focus, input[type="number"]:focus, select:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  .btn-row {
+    display: flex;
+    gap: 8px;
+    margin-top: 20px;
+  }
+
+  button {
+    flex: 1;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    font-family: var(--sans);
+    cursor: pointer;
+    transition: filter 0.15s ease;
+  }
+
+  button:hover { filter: brightness(1.12); }
+  button:disabled { opacity: 0.5; cursor: not-allowed; filter: none; }
+
+  .btn-primary { background: var(--accent); color: #06101f; }
+  .btn-secondary { background: transparent; color: var(--text); border: 1px solid var(--panel-border); }
+  .btn-narc { background: var(--warn); color: #06101f; }
+
+  .field-hint {
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    margin-top: 5px;
+    font-family: var(--mono);
+  }
+  .field-hint a { color: var(--accent); cursor: pointer; text-decoration: underline; }
+
+  .narc-summary {
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    margin-bottom: 14px;
+    line-height: 1.5;
+  }
+  .narc-summary b { color: var(--text); }
+
+  td.miss {
+    text-align: right;
+    font-family: var(--mono);
+    color: var(--warn);
+    font-weight: 600;
+  }
+  .narc-clear {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--good);
+    font-size: 0.95rem;
+  }
+
+  .status {
+    margin-top: 14px;
+    font-size: 0.82rem;
+    color: var(--text-dim);
+    min-height: 1.2em;
+  }
+
+  .status.error { color: #ff6b6b; }
+  .status.ok { color: var(--good); }
+
+  .results h2 {
+    font-size: 1rem;
+    margin: 0 0 12px;
+    color: var(--text-dim);
+    font-weight: 600;
+  }
+
+  .totals-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+
+  .total-chip {
+    background: var(--bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    min-width: 140px;
+  }
+
+  .total-chip .proj {
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 220px;
+  }
+
+  .total-chip .hrs {
+    font-family: var(--mono);
+    font-size: 1.1rem;
+    color: var(--accent);
+    margin-top: 2px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.86rem;
+  }
+
+  thead th {
+    text-align: left;
+    font-size: 0.74rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-dim);
+    border-bottom: 1px solid var(--panel-border);
+    padding: 0 10px 10px;
+    font-weight: 600;
+  }
+
+  thead th.num { text-align: right; }
+
+  tbody td {
+    padding: 9px 10px;
+    border-bottom: 1px solid #20262e;
+    white-space: nowrap;
+  }
+
+  tbody td.num {
+    text-align: right;
+    font-family: var(--mono);
+    color: var(--accent);
+  }
+
+  tbody td.summary {
+    max-width: 320px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  tbody tr:hover { background: #20262e; }
+
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-dim);
+    font-size: 0.9rem;
+  }
+  .scroll-wrap {
+    max-height: 560px;
+    overflow-y: auto;
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+  }
+
+  .scroll-wrap table thead th { position: sticky; top: 0; background: var(--panel); }
+
+  .badge {
+    display: inline-block;
+    font-size: 0.7rem;
+    padding: 2px 7px;
+    border-radius: 10px;
+    background: var(--accent-dim);
+    color: #cfe0ff;
+  }
+
+  .spinner {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 2px solid var(--text-dim);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    vertical-align: -2px;
+    margin-right: 6px;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ---- Calendar range picker ---- */
+  .cal {
+    background: var(--bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    padding: 12px;
+    user-select: none;
+  }
+
+  .cal-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+
+  .cal-title {
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+
+  .cal-nav {
+    display: flex;
+    background: transparent;
+    border: 1px solid var(--panel-border);
+    color: var(--text);
+    border-radius: 6px;
+    width: 26px;
+    height: 26px;
+    flex: none;
+    padding: 0;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+    line-height: 1;
+  }
+
+  .cal-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+  }
+
+  .cal-dow {
+    text-align: center;
+    font-size: 0.66rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-dim);
+    padding: 2px 0 6px;
+  }
+
+  .cal-day {
+    text-align: center;
+    font-size: 0.8rem;
+    padding: 6px 0;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: var(--mono);
+  }
+
+  .cal-day.blank { cursor: default; }
+  .cal-day:not(.blank):hover { background: var(--panel-border); }
+  .cal-day.today { outline: 1px solid var(--text-dim); }
+  .cal-day.in-range { background: var(--accent-dim); border-radius: 0; }
+  .cal-day.endpoint {
+    background: var(--accent);
+    color: #06101f;
+    font-weight: 600;
+  }
+  .cal-day.endpoint.start { border-radius: 6px 0 0 6px; }
+  .cal-day.endpoint.end { border-radius: 0 6px 6px 0; }
+  .cal-day.endpoint.single { border-radius: 6px; }
+
+  .cal-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 10px;
+  }
+
+  .cal-preset {
+    flex: none;
+    background: transparent;
+    border: 1px solid var(--panel-border);
+    color: var(--text-dim);
+    border-radius: 12px;
+    padding: 4px 10px;
+    font-size: 0.72rem;
+    font-weight: 500;
+  }
+  .cal-preset:hover { color: var(--text); }
+
+  .cal-readout {
+    margin-top: 10px;
+    font-size: 0.78rem;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    min-height: 1.1em;
+  }
+  .cal-readout b { color: var(--accent); font-weight: 600; }
+
+  .subhead {
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-dim);
+    font-weight: 600;
+    margin: 4px 0 8px;
+  }
+</style>
 </head>
 <body>
-  <h1>Fetch Jira Worklogs</h1>
-  <form onsubmit="fetchWorklogs(event)">
-    <label>Start:</label>
-    <input type="date" id="start" required>
-    <label>End:</label>
-    <input type="date" id="end" required>
-    <br><br>
-    <button type="submit">View Worklogs</button>
-    <button type="button" onclick="downloadExcel()">Download Excel</button>
-  </form>
-  
-  <div id="status"></div>
-  <pre id="output"></pre>
 
-  <script>
-    // HARDCODED BACKEND URL - Replace with your actual Render URL
-    const API_URL = 'https://aehr-jira-timelog-backend.onrender.com';
+<header>
+  <h1>Jira Worklog Timecard</h1>
+  <p>Pull logged hours for the AT project by date range, employment type, location, or assignee.</p>
+</header>
 
-    async function fetchWorklogs(event) {
-      event.preventDefault();
-      const start = document.getElementById("start").value;
-      const end = document.getElementById("end").value;
-      const statusDiv = document.getElementById("status");
-      const outputDiv = document.getElementById("output");
-      
-      statusDiv.innerHTML = '<div class="status info">Fetching worklogs...</div>';
-      outputDiv.textContent = '';
-      
-      try {
-        const response = await fetch(`${API_URL}/worklogs?start=${start}&end=${end}`);
-        const data = await response.json();
-        
-        if (response.ok) {
-          statusDiv.innerHTML = '<div class="status success">Worklogs fetched successfully!</div>';
-          outputDiv.textContent = JSON.stringify(data, null, 2);
-        } else {
-          statusDiv.innerHTML = `<div class="status error">Error: ${data.error || 'Unknown error'}</div>`;
-        }
-      } catch (error) {
-        statusDiv.innerHTML = `<div class="status error">Error: ${error.message}</div>`;
-      }
+<div class="layout">
+
+  <div class="panel">
+    <div class="field">
+      <label>Date range</label>
+      <input type="hidden" id="start">
+      <input type="hidden" id="end">
+      <div class="cal">
+        <div class="cal-head">
+          <button type="button" class="cal-nav" id="calPrev" aria-label="Previous month">&lsaquo;</button>
+          <span class="cal-title" id="calTitle"></span>
+          <button type="button" class="cal-nav" id="calNext" aria-label="Next month">&rsaquo;</button>
+        </div>
+        <div class="cal-grid" id="calGrid"></div>
+        <div class="cal-presets">
+          <button type="button" class="cal-preset" data-preset="thisWeek">This week</button>
+          <button type="button" class="cal-preset" data-preset="lastWeek">Last week</button>
+          <button type="button" class="cal-preset" data-preset="thisMonth">This month</button>
+          <button type="button" class="cal-preset" data-preset="lastMonth">Last month</button>
+        </div>
+        <div class="cal-readout" id="calReadout">Click a start day, then an end day.</div>
+      </div>
+    </div>
+    <div class="field">
+      <label for="employment">Employment type</label>
+      <select id="employment">
+        {% for opt in employment_options %}
+        <option value="{{ opt }}">{{ opt }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="location">Location</label>
+      <select id="location">
+        {% for opt in location_options %}
+        <option value="{{ opt }}">{{ opt }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="assignee">Assignee</label>
+      <select id="assignee">
+        {% for a in assignees %}
+        <option value="{{ a.accountId }}">{{ a.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="expectedHours">Expected hours (total for range)</label>
+      <input type="number" id="expectedHours" placeholder="e.g. 160" min="0" step="0.5">
+      <div class="field-hint" id="workdayHint"></div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn-primary" id="viewBtn">View</button>
+      <button class="btn-secondary" id="downloadBtn">Download .xlsx</button>
+    </div>
+    <div class="btn-row">
+      <button class="btn-narc" id="narcBtn" title="List users who logged fewer hours than expected for the range">&#128064;</button>
+    </div>
+
+    <div class="status" id="status"></div>
+  </div>
+
+  <div class="panel results">
+    <h2 id="resultsHeading">Worklogs</h2>
+
+    <div id="narcWrap" style="display:none;">
+      <div class="narc-summary" id="narcSummary"></div>
+      <div class="scroll-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>User</th>
+              <th>Employment</th>
+              <th>Location</th>
+              <th class="num">Logged</th>
+              <th class="num">Expected</th>
+              <th class="num">Missing</th>
+            </tr>
+          </thead>
+          <tbody id="narcBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="worklogWrap">
+    <div id="totalsStrip" class="totals-strip"></div>
+
+    <div id="userTotalsWrap" style="display:none; margin-bottom:20px;">
+      <div class="subhead">Total hours by user</div>
+      <div class="scroll-wrap" style="max-height:240px;">
+        <table>
+          <thead>
+            <tr><th>User</th><th class="num">Total Hours</th></tr>
+          </thead>
+          <tbody id="userTotalsBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="subhead">Worklog detail</div>
+    <div class="scroll-wrap">
+      <table id="resultsTable">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Author</th>
+            <th>Employment</th>
+            <th>Location</th>
+            <th class="num">Hours</th>
+            <th>Project</th>
+            <th>Issue Key</th>
+          </tr>
+        </thead>
+        <tbody id="resultsBody">
+          <tr><td colspan="7"><div class="empty-state">Choose a date range and click View to load worklogs.</div></td></tr>
+        </tbody>
+      </table>
+    </div>
+    </div><!-- /worklogWrap -->
+  </div>
+
+</div>
+
+<script>
+const el = (id) => document.getElementById(id);
+const statusEl = el('status');
+
+function setStatus(msg, kind) {
+  statusEl.textContent = msg || '';
+  statusEl.className = 'status' + (kind ? ' ' + kind : '');
+}
+
+function buildParams() {
+  const params = new URLSearchParams();
+  params.set('start', el('start').value);
+  params.set('end', el('end').value);
+  params.set('employment', el('employment').value);
+  params.set('location', el('location').value);
+  const assignee = el('assignee').value;
+  if (assignee) params.set('assignee', assignee);
+  params.set('expected_hours', el('expectedHours').value || '0');
+  return params;
+}
+
+async function refreshAssignees() {
+  const params = new URLSearchParams();
+  params.set('employment', el('employment').value);
+  params.set('location', el('location').value);
+  const prevValue = el('assignee').value;
+
+  try {
+    const res = await fetch('/api/assignees?' + params.toString());
+    const list = await res.json();
+    const select = el('assignee');
+    select.innerHTML = '';
+    list.forEach(a => {
+      const opt = document.createElement('option');
+      opt.value = a.accountId;
+      opt.textContent = a.label;
+      select.appendChild(opt);
+    });
+    if ([...select.options].some(o => o.value === prevValue)) {
+      select.value = prevValue;
+    }
+  } catch (e) {
+    setStatus('Could not refresh assignee list.', 'error');
+  }
+}
+
+function renderTotals(totals) {
+  const strip = el('totalsStrip');
+  strip.innerHTML = '';
+  if (!totals || totals.length === 0) return;
+  totals.forEach(t => {
+    const chip = document.createElement('div');
+    chip.className = 'total-chip';
+    chip.innerHTML = `<div class="proj" title="${t.Project}">${t.Project}</div>
+                       <div class="hrs">${t['Total Hours']}h</div>`;
+    strip.appendChild(chip);
+  });
+}
+
+function renderUserTotals(userTotals) {
+  const wrap = el('userTotalsWrap');
+  const body = el('userTotalsBody');
+  body.innerHTML = '';
+  if (!userTotals || userTotals.length === 0) {
+    wrap.style.display = 'none';
+    return;
+  }
+  userTotals.forEach(u => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${u.Author}</td><td class="num">${u['Total Hours']}</td>`;
+    body.appendChild(tr);
+  });
+  wrap.style.display = '';
+}
+
+function renderRows(rows) {
+  const body = el('resultsBody');
+  body.innerHTML = '';
+  if (!rows || rows.length === 0) {
+    body.innerHTML = '<tr><td colspan="7"><div class="empty-state">No worklogs found for this selection.</div></td></tr>';
+    return;
+  }
+  rows.forEach(r => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${r.Date}</td>
+      <td>${r.Author}</td>
+      <td>${r.Employment ? `<span class="badge">${r.Employment}</span>` : ''}</td>
+      <td>${r.Location ? `<span class="badge">${r.Location}</span>` : ''}</td>
+      <td class="num">${r.Hours}</td>
+      <td class="summary" title="${r.Project}">${r.Project}</td>
+      <td>${r['Issue Key']}</td>
+    `;
+    body.appendChild(tr);
+  });
+}
+
+async function viewWorklogs() {
+  if (!el('start').value || !el('end').value) {
+    setStatus('Choose both a start and end date.', 'error');
+    return;
+  }
+  showView('worklog');
+  setStatus('Loading worklogs...');
+  el('viewBtn').disabled = true;
+  try {
+    const res = await fetch('/api/worklogs?' + buildParams().toString());
+    const data = await res.json();
+    if (!res.ok) {
+      setStatus(data.error || 'Something went wrong.', 'error');
+      return;
+    }
+    renderTotals(data.totals);
+    renderUserTotals(data.user_totals);
+    renderRows(data.rows);
+    setStatus(`Loaded ${data.rows.length} worklog entr${data.rows.length === 1 ? 'y' : 'ies'}.`, 'ok');
+  } catch (e) {
+    setStatus('Request failed. Check the server connection.', 'error');
+  } finally {
+    el('viewBtn').disabled = false;
+  }
+}
+
+// Toggle between the normal worklog view and the Narc (missing-hours) view.
+function showView(which) {
+  const narc = which === 'narc';
+  el('narcWrap').style.display = narc ? '' : 'none';
+  el('worklogWrap').style.display = narc ? 'none' : '';
+  el('resultsHeading').textContent = narc ? 'Missing Hours Report' : 'Worklogs';
+}
+
+function renderNarc(data) {
+  const summary = el('narcSummary');
+  summary.innerHTML = `Expected <b>${data.expected_hours}h</b> per user for the selected range.`;
+
+  const body = el('narcBody');
+  body.innerHTML = '';
+  if (!data.offenders.length) {
+    body.innerHTML = '<tr><td colspan="6"><div class="narc-clear">&#10003; Everyone in scope met their expected hours.</div></td></tr>';
+    return;
+  }
+  data.offenders.forEach(o => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td title="${o.Email}">${o.Author}</td>
+      <td>${o.Employment ? `<span class="badge">${o.Employment}</span>` : ''}</td>
+      <td>${o.Location ? `<span class="badge">${o.Location}</span>` : ''}</td>
+      <td class="num">${o.Logged}</td>
+      <td class="num">${o.Expected}</td>
+      <td class="miss">-${o.Missing}</td>
+    `;
+    body.appendChild(tr);
+  });
+}
+
+async function runNarc() {
+  if (!el('start').value || !el('end').value) {
+    setStatus('Choose both a start and end date.', 'error');
+    return;
+  }
+  if (!(parseFloat(el('expectedHours').value) > 0)) {
+    el('expectedHours').focus();
+    setStatus('Enter the expected hours for this range first.', 'error');
+    return;
+  }
+  showView('narc');
+  setStatus('Checking logged hours against expected...');
+  el('narcBtn').disabled = true;
+  try {
+    const res = await fetch('/api/narc?' + buildParams().toString());
+    const data = await res.json();
+    if (!res.ok) {
+      setStatus(data.error || 'Something went wrong.', 'error');
+      return;
+    }
+    renderNarc(data);
+    setStatus(data.offenders.length
+      ? `${data.offenders.length} user${data.offenders.length === 1 ? '' : 's'} below expected hours.`
+      : 'All caught up — nobody is short.', 'ok');
+  } catch (e) {
+    setStatus('Request failed. Check the server connection.', 'error');
+  } finally {
+    el('narcBtn').disabled = false;
+  }
+}
+
+function downloadWorklogs() {
+  if (!el('start').value || !el('end').value) {
+    setStatus('Choose both a start and end date.', 'error');
+    return;
+  }
+  setStatus('Preparing download...');
+  window.location.href = '/download?' + buildParams().toString();
+}
+
+/* ---- Calendar range picker ---- */
+const MONTHS = ['January','February','March','April','May','June',
+                'July','August','September','October','November','December'];
+const DOW = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+
+const cal = {
+  view: new Date(),   // month currently shown
+  start: null,        // Date
+  end: null,          // Date
+};
+cal.view.setDate(1);
+
+function fmtISO(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function fmtHuman(d) {
+  return `${MONTHS[d.getMonth()].slice(0, 3)} ${d.getDate()}, ${d.getFullYear()}`;
+}
+
+function sameDay(a, b) {
+  return a && b && a.getFullYear() === b.getFullYear()
+    && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
+function syncCalInputs() {
+  el('start').value = cal.start ? fmtISO(cal.start) : '';
+  el('end').value = cal.end ? fmtISO(cal.end) : '';
+  const readout = el('calReadout');
+  if (cal.start && cal.end) {
+    readout.innerHTML = `<b>${fmtHuman(cal.start)}</b> &rarr; <b>${fmtHuman(cal.end)}</b>`;
+  } else if (cal.start) {
+    readout.innerHTML = `<b>${fmtHuman(cal.start)}</b> &rarr; pick an end day`;
+  } else {
+    readout.textContent = 'Click a start day, then an end day.';
+  }
+  updateWorkdayHint();
+}
+
+// Count Mon–Fri days in the selected range (no holiday assumptions) and show it
+// as a convenience for filling in expected hours. Company holidays are on you.
+function countWeekdays() {
+  if (!cal.start || !cal.end) return 0;
+  let n = 0;
+  const d = new Date(cal.start.getFullYear(), cal.start.getMonth(), cal.start.getDate());
+  while (d <= cal.end) {
+    if (d.getDay() !== 0 && d.getDay() !== 6) n++;
+    d.setDate(d.getDate() + 1);
+  }
+  return n;
+}
+
+function updateWorkdayHint() {
+  const hint = el('workdayHint');
+  const wd = countWeekdays();
+  if (!wd) { hint.textContent = ''; return; }
+  hint.innerHTML = `${wd} weekday${wd === 1 ? '' : 's'} in range · <a id="fill8">use ${wd}&times;8 = ${wd * 8}h</a>`;
+  el('fill8').addEventListener('click', () => {
+    el('expectedHours').value = wd * 8;
+  });
+}
+
+function renderCalendar() {
+  el('calTitle').textContent = `${MONTHS[cal.view.getMonth()]} ${cal.view.getFullYear()}`;
+  const grid = el('calGrid');
+  grid.innerHTML = '';
+
+  DOW.forEach(d => {
+    const c = document.createElement('div');
+    c.className = 'cal-dow';
+    c.textContent = d;
+    grid.appendChild(c);
+  });
+
+  const year = cal.view.getFullYear();
+  const month = cal.view.getMonth();
+  const firstDow = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const today = new Date();
+
+  for (let i = 0; i < firstDow; i++) {
+    const blank = document.createElement('div');
+    blank.className = 'cal-day blank';
+    grid.appendChild(blank);
+  }
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const date = new Date(year, month, day);
+    const cell = document.createElement('div');
+    cell.className = 'cal-day';
+    cell.textContent = day;
+
+    if (sameDay(date, today)) cell.classList.add('today');
+
+    const isStart = sameDay(date, cal.start);
+    const isEnd = sameDay(date, cal.end);
+    if (isStart || isEnd) {
+      cell.classList.add('endpoint');
+      if (cal.start && cal.end && sameDay(cal.start, cal.end)) cell.classList.add('single');
+      else if (isStart) cell.classList.add('start');
+      else cell.classList.add('end');
+    } else if (cal.start && cal.end && date > cal.start && date < cal.end) {
+      cell.classList.add('in-range');
     }
 
-    async function downloadExcel() {
-      const start = document.getElementById("start").value;
-      const end = document.getElementById("end").value;
-      const statusDiv = document.getElementById("status");
-      
-      if (!start || !end) {
-        statusDiv.innerHTML = '<div class="status error">Please select both start and end dates</div>';
-        return;
-      }
-      
-      statusDiv.innerHTML = '<div class="status info">Generating Excel file...</div>';
-      
-      try {
-        const response = await fetch(`${API_URL}/worklogs/excel?start=${start}&end=${end}`);
-        
-        if (response.ok) {
-          const blob = await response.blob();
-          const url = window.URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `worklogs_${start}_to_${end}.xlsx`;
-          document.body.appendChild(a);
-          a.click();
-          window.URL.revokeObjectURL(url);
-          document.body.removeChild(a);
-          statusDiv.innerHTML = '<div class="status success">Excel file downloaded successfully!</div>';
-        } else {
-          const data = await response.json();
-          statusDiv.innerHTML = `<div class="status error">Error: ${data.error || 'Unknown error'}</div>`;
-        }
-      } catch (error) {
-        statusDiv.innerHTML = `<div class="status error">Error: ${error.message}</div>`;
-      }
-    }
-  </script>
+    cell.addEventListener('click', () => onDayClick(date));
+    grid.appendChild(cell);
+  }
+}
+
+function onDayClick(date) {
+  // Start a fresh range if none is in progress or a full range already exists.
+  if (!cal.start || (cal.start && cal.end)) {
+    cal.start = date;
+    cal.end = null;
+  } else if (date < cal.start) {
+    cal.end = cal.start;
+    cal.start = date;
+  } else {
+    cal.end = date;
+  }
+  syncCalInputs();
+  renderCalendar();
+}
+
+function setRange(start, end) {
+  cal.start = start;
+  cal.end = end;
+  cal.view = new Date(start.getFullYear(), start.getMonth(), 1);
+  syncCalInputs();
+  renderCalendar();
+}
+
+function applyPreset(name) {
+  const now = new Date();
+  const y = now.getFullYear(), m = now.getMonth(), d = now.getDate();
+  if (name === 'thisWeek') {
+    const start = new Date(y, m, d - now.getDay());
+    setRange(start, new Date(y, m, d - now.getDay() + 6));
+  } else if (name === 'lastWeek') {
+    const start = new Date(y, m, d - now.getDay() - 7);
+    setRange(start, new Date(y, m, d - now.getDay() - 1));
+  } else if (name === 'thisMonth') {
+    setRange(new Date(y, m, 1), new Date(y, m + 1, 0));
+  } else if (name === 'lastMonth') {
+    setRange(new Date(y, m - 1, 1), new Date(y, m, 0));
+  }
+}
+
+el('calPrev').addEventListener('click', () => {
+  cal.view = new Date(cal.view.getFullYear(), cal.view.getMonth() - 1, 1);
+  renderCalendar();
+});
+el('calNext').addEventListener('click', () => {
+  cal.view = new Date(cal.view.getFullYear(), cal.view.getMonth() + 1, 1);
+  renderCalendar();
+});
+document.querySelectorAll('.cal-preset').forEach(btn => {
+  btn.addEventListener('click', () => applyPreset(btn.dataset.preset));
+});
+
+renderCalendar();
+syncCalInputs();
+
+el('viewBtn').addEventListener('click', viewWorklogs);
+el('downloadBtn').addEventListener('click', downloadWorklogs);
+el('narcBtn').addEventListener('click', runNarc);
+el('employment').addEventListener('change', refreshAssignees);
+el('location').addEventListener('change', refreshAssignees);
+</script>
+
 </body>
 </html>
