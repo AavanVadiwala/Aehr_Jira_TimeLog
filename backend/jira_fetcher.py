@@ -257,7 +257,10 @@ def parse_request_args(args):
 # Flask app
 # ---------------------------------------------------------------------------
 
-app = Flask(__name__)
+# Templates (index.html) live in ../frontend, not the default backend/templates.
+app = Flask(
+    __name__
+)
 # Pick up template edits without needing a server restart (dev convenience).
 app.config["TEMPLATES_AUTO_RELOAD"] = True
 
