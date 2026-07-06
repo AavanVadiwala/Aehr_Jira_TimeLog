@@ -32,8 +32,8 @@ ALL = "All"
 
 # UI label -> Jira group name. Lets the dropdown show friendly text while we
 # match against the actual Jira groups (note "Interns" is plural in Jira).
-EMP_GROUPS = {"Permanent": "Permanent", "Intern": "Interns"}
-LOC_GROUPS = {"USA": "USA", "Philippines": "Philippines"}
+EMP_GROUPS = {"Permanent": "Permanent_ENG", "Intern": "Interns_ENG"}
+LOC_GROUPS = {"USA": "USA_ENG", "Philippines": "Philippines_ENG"}
 RELEVANT_GROUPS = set(EMP_GROUPS.values()) | set(LOC_GROUPS.values())
 
 
@@ -77,7 +77,12 @@ def fetch_project_users(project_key="AT"):
         group_sets = list(ex.map(lambda u: fetch_user_groups(u["accountId"]), active))
     for u, groups in zip(active, group_sets):
         u["groups"] = groups
-    return active
+    # The real AT team = anyone in at least one employment/location group.
+    # assignable/search returns every Aehr employee, so drop the ones who aren't
+    # in any of those groups (i.e. not actually on AT).
+    at_users = [u for u in active if u["groups"]]
+    print(f"Kept {len(at_users)} AT users (of {len(active)} assignable).")
+    return at_users
 
 
 def user_matches(user, emp_group, loc_group):
@@ -252,11 +257,7 @@ def parse_request_args(args):
 # Flask app
 # ---------------------------------------------------------------------------
 
-# Templates live in ../frontend, not the default backend/templates.
-app = Flask(
-    __name__,
-    template_folder=os.path.join(os.path.dirname(__file__), "..", "frontend"),
-)
+app = Flask(__name__)
 # Pick up template edits without needing a server restart (dev convenience).
 app.config["TEMPLATES_AUTO_RELOAD"] = True
 
