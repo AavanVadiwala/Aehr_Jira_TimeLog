@@ -257,7 +257,11 @@ def parse_request_args(args):
 # Flask app
 # ---------------------------------------------------------------------------
 
-app = Flask(__name__)
+# index.html lives in ../frontend, not Flask's default backend/templates dir.
+app = Flask(
+    __name__,
+    template_folder=os.path.join(os.path.dirname(__file__), "..", "frontend"),
+)
 # Pick up template edits without needing a server restart (dev convenience).
 app.config["TEMPLATES_AUTO_RELOAD"] = True
 
